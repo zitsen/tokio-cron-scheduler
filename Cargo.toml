@@ -23,10 +23,9 @@ chrono = { version = "0.4", default-features = false }
 uuid = { version = "1", features = ["v4"] }
 prost = { version = "0.11", optional = true }
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", optional = true }
 
 num-traits = "0.2"
-num-derive = "0.3"
+num-derive = "0.4"
 
 [dependencies.nats]
 version = "0.23"
@@ -49,6 +48,7 @@ features = ["with-uuid-1"]
 [dev-dependencies]
 anyhow = "1.0"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tracing-subscriber = { version = "0.3" }
 
 [build-dependencies]
 prost-build = { version = "0.11", optional = true }
@@ -66,20 +66,18 @@ default = []
 [[example]]
 name = "simple"
 path = "examples/simple_job.rs"
-required-features = ["tracing-subscriber"]
 
 [[example]]
 name = "simple-tokio-in-a-thread"
 path = "examples/simple_job_tokio_in_a_thread.rs"
-required-features = ["tracing-subscriber"]
 
 [[example]]
 name = "nats"
 path = "examples/nats_job.rs"
-required-features = ["nats_storage", "tracing-subscriber"]
+required-features = ["nats_storage"]
 
 [[example]]
 name = "postgres"
 path = "examples/postgres_job.rs"
-required-features = ["postgres_storage", "tracing-subscriber"]
+required-features = ["postgres_storage"]
 
