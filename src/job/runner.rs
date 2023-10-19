@@ -43,15 +43,36 @@ impl JobRunner {
                     }
                 });
             }
+
+            match job_scheduler.is_running(uuid).await {
+                Ok(is_running) => {
+                    if is_running {
+                        continue;
+                    }
+                }
+                Err(err) => {
+                    error!("Error checking if job is running {:?}", err);
+                    continue;
+                }
+            }
             let mut w = job_code.write().await;
             let code = w.get(uuid).await;
             match code {
                 Ok(Some(job)) => {
                     let mut job = job.write().await;
+
                     let v = (job)(uuid, job_scheduler.clone());
                     let tx = tx_notify.clone();
+
+                    let j = job_scheduler.clone();
                     tokio::spawn(async move {
+                        if let Err(err) = j.set_ran(uuid, true).await {
+                            error!("Error setting job ran {:?}", err);
+                        }
                         v.await;
+                        if let Err(err) = j.set_ran(uuid, false).await {
+                            error!("Error setting job not ran {:?}", err);
+                        }
                         if let Err(e) = tx.send((uuid, JobState::Done)) {
                             error!("Error sending spawned task {:?}", e);
                         }

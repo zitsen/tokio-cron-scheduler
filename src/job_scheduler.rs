@@ -302,6 +302,50 @@ impl JobsSchedulerLocked {
         JobDeleter::remove(&context, to_be_removed).await
     }
 
+    pub async fn is_running(&self, job_id: Uuid) -> Result<bool, JobSchedulerError> {
+        if !self.inited().await {
+            let mut s = self.clone();
+            s.init().await?;
+        }
+
+        let mut metadata = self.context.metadata_storage.write().await;
+        let jm = metadata.get(job_id).await?;
+        match jm {
+            Some(job_metadata) => {
+                if job_metadata.stopped {
+                    return Ok(false);
+                }
+                if job_metadata.ran {
+                    return Ok(true);
+                }
+                return Ok(false);
+            }
+            _ => {
+                return Ok(true);
+            }
+        }
+    }
+    pub(crate) async fn set_ran(&self, job_id: Uuid, ran: bool) -> Result<(), JobSchedulerError> {
+        if !self.inited().await {
+            let mut s = self.clone();
+            s.init().await?;
+        }
+
+        let mut metadata = self.context.metadata_storage.write().await;
+        let jm = metadata.get(job_id).await?;
+        match jm {
+            Some(mut job_metadata) => {
+                job_metadata
+                    .last_updated
+                    .replace(Utc::now().timestamp() as u64);
+                job_metadata.ran = ran;
+                metadata.add_or_update(job_metadata).await?;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
     /// The `start` spawns a Tokio task where it loops. Every 500ms it
     /// runs the tick method to increment any pending jobs.
     ///
@@ -364,17 +408,10 @@ impl JobsSchedulerLocked {
         }
         let mut r = self.context.metadata_storage.write().await;
         r.get(job_id).await.map(|v| {
-            if let Some(vv) = v {
-                if vv.next_tick == 0 {
-                    return None;
-                }
-                match NaiveDateTime::from_timestamp_opt(vv.next_tick as i64, 0) {
-                    None => None,
-                    Some(ts) => Some(DateTime::from_naive_utc_and_offset(ts, Utc)),
-                }
-            } else {
-                None
-            }
+            v.map(|vv| vv.next_tick)
+                .filter(|t| *t != 0)
+                .and_then(|ts| NaiveDateTime::from_timestamp_opt(ts as i64, 0))
+                .map(|ts| DateTime::from_naive_utc_and_offset(ts, Utc))
         })
     }
 
