@@ -155,20 +155,26 @@ impl Scheduler {
 
                 for uuid in must_runs {
                     {
-                        let tx = notify_tx.clone();
-                        tokio::spawn(async move {
-                            if let Err(e) = tx.send((uuid, JobState::Scheduled)) {
-                                error!("Error sending notification activation {:?}", e);
+                        if let Ok(Some(data)) = metadata_storage.write().await.get(uuid).await {
+                            if !data.ran {
+                                {
+                                    let tx = notify_tx.clone();
+                                    tokio::spawn(async move {
+                                        if let Err(e) = tx.send((uuid, JobState::Scheduled)) {
+                                            error!("Error sending notification activation {:?}", e);
+                                        }
+                                    });
+                                }
+                                {
+                                    let tx = job_activation_tx.clone();
+                                    tokio::spawn(async move {
+                                        if let Err(e) = tx.send(uuid) {
+                                            error!("Error sending job activation tx {:?}", e);
+                                        }
+                                    });
+                                }
                             }
-                        });
-                    }
-                    {
-                        let tx = job_activation_tx.clone();
-                        tokio::spawn(async move {
-                            if let Err(e) = tx.send(uuid) {
-                                error!("Error sending job activation tx {:?}", e);
-                            }
-                        });
+                        }
                     }
 
                     let storage = metadata_storage.clone();
